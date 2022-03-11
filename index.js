@@ -45,6 +45,6 @@ app.use("/api/users", userRoute);
 app.use("/api/products", productRoute);
 app.use("/api/chats", chatRoute);
 
-server.listen(process.env.PORT, "192.168.1.103", () => {
+server.listen(process.env.PORT, () => {
   console.log("[eSTUDY API]: App started !");
 });
