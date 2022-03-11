@@ -5,7 +5,13 @@ const User = require("../models/User");
 
 router.get("/", async (req, res) => {
   try {
-    const allUsers = await User.find();
+    const params = req.query;
+    const mongoQueryString = { _id: { $in: params._id } };
+    const finalQueryParamFormat = Array.isArray(params?._id)
+      ? mongoQueryString
+      : { ...params };
+
+    const allUsers = await User.find(finalQueryParamFormat);
 
     res
       .status(200)

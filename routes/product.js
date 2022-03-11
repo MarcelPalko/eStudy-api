@@ -4,10 +4,13 @@ const {
   verifyUserByToken,
 } = require("../controllers/verifyToken");
 const Product = require("../models/Product");
+const DBInformation = require("../models/DBInformation");
+const User = require("../models/User");
 const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const fs = require("fs").promises;
 const { unlink } = require("fs");
+const { createNotification } = require("../scripts/notification");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -21,6 +24,16 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
 });
+
+const detectChange = async () => {
+  const lastChange = await DBInformation.findOne();
+  const DBInformationDocument = await DBInformation.findOneAndUpdate(
+    lastChange._doc._id,
+    {
+      productsLastChange: new Date().toISOString(),
+    }
+  );
+};
 
 router.get("/", async (req, res) => {
   try {
@@ -43,10 +56,12 @@ router.post("/", verifyToken, upload.array("images", 4), async (req, res) => {
     categories: req.body.categories,
     images: images,
     userId: req.body.userId,
+    status: "ACTIVE",
   });
 
   try {
     const savedProduct = await newProduct.save();
+    await detectChange();
 
     res.status(200).json(savedProduct);
   } catch (err) {
@@ -56,8 +71,6 @@ router.post("/", verifyToken, upload.array("images", 4), async (req, res) => {
 });
 
 router.patch("/:id", verifyToken, verifyUserByToken, async (req, res) => {
-  VerifyUserByToken(req?.user);
-
   try {
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
@@ -67,32 +80,63 @@ router.patch("/:id", verifyToken, verifyUserByToken, async (req, res) => {
       { new: true }
     );
 
-    res.status(200).json(updatedProduct._doc);
+    detectChange();
+    return res.status(200).json(updatedProduct._doc);
   } catch (err) {
     res.status(500).json(err);
   }
 });
 
+// TODO - PROJET FAVOURITE ARRAY
+// NOTIFICATIONS
 router.delete("/:id", verifyToken, verifyUserByToken, async (req, res) => {
   try {
-    const removedProduct = await Product.findOneAndDelete(
-      {
-        _id: req.params.id,
-      },
-      (err, product) => {
-        if (err) {
-          throw err;
-        } else {
-          product.images.forEach((image) => {
-            unlink(`./imgs/products/${image.split("/")[5]}`, (err) => {
-              if (err) throw err;
-            });
-          });
-        }
-      }
-    );
+    const usersWithProduct = await User.find({
+      favouriteProducts: { $elemMatch: { _id: req.params.id } },
+    });
 
-    res.status(200).json(removedProduct);
+    for (const user of usersWithProduct.map((product) => product._doc)) {
+      let newNotifications = [...user.notifications];
+      const filteredProducts = user.favouriteProducts.filter(
+        (product) => product._id + "" === req.params.id
+      );
+      const restProducts = user.favouriteProducts.filter(
+        (product) => product._id + "" !== req.params.id
+      );
+
+      for (const product of filteredProducts) {
+        const newNotification = createNotification(product, "DELETE");
+
+        newNotifications.push(newNotification);
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(user._id.toString(), {
+        $set: {
+          favouriteProducts: restProducts,
+          notifications: newNotifications,
+        },
+      });
+    }
+
+    const product = await Product.findById(req.params.id);
+    product.images.forEach((image) => {
+      unlink(`./imgs/products/${image.split("/")[5]}`, (err) => {});
+    });
+
+    product.deleteOne();
+    detectChange();
+
+    return res.status(200).send();
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
+router.get("/last-change", async (req, res) => {
+  try {
+    const DBInformationObject = await DBInformation.findOne();
+
+    res.status(200).json(DBInformationObject._doc);
   } catch (err) {
     res.status(500).json(err);
   }

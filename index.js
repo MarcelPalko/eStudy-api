@@ -1,5 +1,7 @@
 const express = require("express");
 const app = express();
+const http = require("http");
+const server = http.Server(app);
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const path = require("path");
@@ -8,6 +10,7 @@ const path = require("path");
 const userRoute = require("./routes/user");
 const authRoute = require("./routes/auth");
 const productRoute = require("./routes/product");
+const chatRoute = require("./routes/chat");
 
 dotenv.config();
 
@@ -19,7 +22,7 @@ mongoose
 app.use("/images", express.static(path.join(__dirname, "imgs")));
 app.use(express.json({ limit: "50mb" }));
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "http://localhost:4200");
+  res.header("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Methods",
     "GET, PUT, POST, DELETE, PATCH, OPTIONS"
@@ -40,7 +43,8 @@ app.options("/*", (_, res) => {
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
 app.use("/api/products", productRoute);
+app.use("/api/chats", chatRoute);
 
-app.listen(process.env.PORT, () => {
+server.listen(process.env.PORT, "192.168.1.103", () => {
   console.log("[eSTUDY API]: App started !");
 });

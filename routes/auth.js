@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 
 const { destructUser } = require("../scripts/destructUser");
 const User = require("../models/User");
+const { verifyToken } = require("../controllers/verifyToken");
 
 router.post("/register", async (req, res) => {
   const newUser = new User({
@@ -63,6 +64,48 @@ router.post("/login", async (req, res) => {
     );
 
     return res.status(200).json({ ...destructUser(user._doc), token });
+  } catch (err) {
+    console.log(`[eSTUDY API - USER ROUTE]: ERROR: ${err}`);
+    return res.status(500).json(err);
+  }
+});
+
+router.post("/check-password", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const hashedPassword = cryptoJS.AES.decrypt(
+      user.password,
+      process.env.PASS_SEC
+    );
+    const decPassword = hashedPassword.toString(cryptoJS.enc.Utf8);
+
+    if (decPassword !== req.body.password) {
+      return res.status(200).send(false);
+    }
+
+    return res.status(200).send(true);
+  } catch (err) {
+    console.log(`[eSTUDY API - USER ROUTE]: ERROR: ${err}`);
+    return res.status(500).json(err);
+  }
+});
+
+router.post("/change-password", verifyToken, async (req, res) => {
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $set: {
+          password: cryptoJS.AES.encrypt(
+            req.body.newPassword,
+            process.env.PASS_SEC
+          ).toString(),
+        },
+      },
+      { new: true }
+    );
+
+    return res.status(200).json(updatedUser._doc);
   } catch (err) {
     console.log(`[eSTUDY API - USER ROUTE]: ERROR: ${err}`);
     return res.status(500).json(err);

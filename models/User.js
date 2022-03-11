@@ -8,6 +8,15 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     class: { type: String },
     favouriteProducts: { type: [productModel.schema], required: false },
+    notifications: {
+      type: [
+        {
+          text: { type: String },
+          type: { type: String },
+          createdAt: { type: String },
+        },
+      ],
+    },
   },
   { timestamps: true }
 );
